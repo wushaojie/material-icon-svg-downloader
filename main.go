@@ -1,109 +1,94 @@
 package main
 
 import (
-	"log"
+	"encoding/json"
 	"fmt"
-	"strconv"
+	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
-	"io"
-	"strings"
-	"io/ioutil"
-	"encoding/json"
+	"strconv"
 )
 
-type ImageUrl struct {
-	Twotone  string `json:"twotone,omitempty"`
-	Sharp    string `json:"sharp,omitempty"`
-	Outline  string `json:"outline,omitempty"`
-	Round    string `json:"round,omitempty"`
-	Baseline string `json:"baseline,omitempty"`
-}
-
 type ICON struct {
-	ID        string    `json:"id"`
-	ImageUrls *ImageUrl `json:"imageUrls,omitempty"`
-}
-
-type ICONS struct {
-	Icons []ICON `json:"icons"`
-	Name  string `json:"name"`
+	Name                string   `json:"name"`
+	Version             int      `json:"version"`
+	UnsupportedFamilies []string `json:"unsupported_families"`
+	Categories          []string `json:"categories"`
+	Tags                []string `json:"tags"`
+	SizePx              []string `json:"sizes_px"`
 }
 
 type MaterialIcon struct {
-	BaseUrl    string  `json:"baseUrl"`
-	Categories []ICONS `json:"categories"`
+	ICONS []ICON `json:"icons"`
 }
 
+// https://fonts.gstatic.com/s/i/materialiconsoutlined/accessible/v4/24px.svg?download=true
 const (
-	BASE_URL           = "https://material.io/tools/icons/static/icons/"
-	DATA_URL           = "https://material.io/tools/icons/static/data.json"
-	MATERIAL_DIRECTORY = "material"
-	ICON_TYPE          = "baseline"
-	ICON_SIZE          = 24
-	PERM               = 0755
+	BASE_URL  = "https://fonts.gstatic.com/s/i"
+	DATA_URL  = "icons.json"
+	BASE_PATH = "material"
+	ICON_TYPE = "materialiconsoutlined"
+	ICON_SIZE = 24
+	PERM      = 0755
 )
 
-
-func save(materialIcon MaterialIcon, iconType string, iconSize int) {
-	var categories = materialIcon.Categories
+func save(materialIcon MaterialIcon) {
+	var icons = materialIcon.ICONS
 	var count int
 	fmt.Println("downloading...")
-	for i := 0; i < len(categories); i++ {
-		category := categories[i]
-		directoryName := category.Name
-		icons := category.Icons
-		err := os.Mkdir(directoryName, PERM)
+	os.RemoveAll(BASE_PATH)
 
+	for i := 0; i < len(icons); i++ {
+		icon := icons[i]
+		name := icon.Name
+		version := "v" + strconv.Itoa(icon.Version)
+		path := BASE_PATH + "/" + icon.Categories[0]
+
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			os.MkdirAll(path, PERM)
+		}
+
+		var fileName string
+		fileName = strconv.Itoa(ICON_SIZE) + "px.svg"
+		imageUrl := fmt.Sprintf("%s/%s/%s/%s/%s", BASE_URL, ICON_TYPE, name, version, fileName)
+		fmt.Println(imageUrl)
+
+		resp, err := http.Get(imageUrl)
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 		}
 
-		for j := 0; j < len(icons); j++ {
-			var fileName string
-			item := icons[j]
-			fileName = iconType + "-" + item.ID + "-" + strconv.Itoa(iconSize) + "px.svg"
-			imageUrls := item.ImageUrls
-
-			if imageUrls != nil {
-				fileName = imageUrls.Baseline
-			}
-			imageUrl := BASE_URL + fileName
-
-			resp, err := http.Get(imageUrl)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			file, err := os.Create(directoryName + "/" + strings.Replace(fileName, iconType+"-", "", 1))
-			if err != nil {
-				log.Fatal(err)
-			}
-			_, err = io.Copy(file, resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
-			count++
-
-			file.Close()
-			resp.Body.Close()
+		file, err := os.Create(path + "/" + name + ".svg")
+		if err != nil {
+			log.Fatal(err)
 		}
+
+		_, err = io.Copy(file, resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		count++
+
+		file.Close()
+		resp.Body.Close()
 	}
-	fmt.Printf("Complete %d\n icons", count)
+	fmt.Printf("Downloaded %d icons", count)
 }
 
-func getMaterialIconData(url string) MaterialIcon {
-	r, err := http.Get(url)
+func getMaterialIconData(file string) MaterialIcon {
+	f, err := os.Open(file)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := ioutil.ReadAll(f)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer r.Body.Close()
+	defer f.Close()
 
 	var materialIcon MaterialIcon
 	json.Unmarshal(b, &materialIcon)
@@ -111,9 +96,6 @@ func getMaterialIconData(url string) MaterialIcon {
 }
 
 func main() {
-	os.Mkdir(MATERIAL_DIRECTORY, PERM)
-	os.Chdir(MATERIAL_DIRECTORY)
-
 	var data = getMaterialIconData(DATA_URL)
-	save(data, ICON_TYPE, ICON_SIZE)
+	save(data)
 }
