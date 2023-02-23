@@ -37,7 +37,7 @@ const (
 func save(materialIcon MaterialIcon) {
 	var icons = materialIcon.ICONS
 	var count int
-	fmt.Println("downloading...")
+	fmt.Println("Downloading...")
 	os.RemoveAll(BASE_PATH)
 
 	for i := 0; i < len(icons); i++ {
