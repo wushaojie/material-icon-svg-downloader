@@ -25,6 +25,7 @@ type MaterialIcon struct {
 }
 
 // https://fonts.gstatic.com/s/i/materialiconsoutlined/accessible/v4/24px.svg?download=true
+// /s/i/{family}/{icon}/v{version}/{asset}"
 const (
 	BASE_URL  = "https://fonts.gstatic.com/s/i"
 	DATA_URL  = "icons.json"
@@ -60,6 +61,10 @@ func save(materialIcon MaterialIcon) {
 			log.Fatal(err)
 		}
 
+		if resp.StatusCode != 200 {
+			continue
+		}
+
 		file, err := os.Create(path + "/" + name + ".svg")
 		if err != nil {
 			log.Fatal(err)
@@ -89,7 +94,6 @@ func getMaterialIconData(file string) MaterialIcon {
 	}
 
 	defer f.Close()
-
 	var materialIcon MaterialIcon
 	json.Unmarshal(b, &materialIcon)
 	return materialIcon
